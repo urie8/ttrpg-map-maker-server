@@ -1,5 +1,8 @@
 var builder = WebApplication.CreateBuilder(args);
 
+// Set the desired port to 5000
+builder.WebHost.UseUrls("http://localhost:5000");
+
 // Add services to the container.
 
 builder.Services.AddControllers();
@@ -27,7 +30,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// Disable to test API using Postman
+// app.UseHttpsRedirection();
 
 app.UseCors("AllowSpecificOrigin");
 
