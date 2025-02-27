@@ -40,7 +40,7 @@ namespace NoiseDemo.Controllers
                         // Normalize x and y coordinates to the range [-0.5, 0.5)
                         float nx = (float)x / w - 0.5f;
                         float ny = (float)y / h - 0.5f;
-                        values[y][x] = Math.Pow(Noise(nx, ny) + 0.5 * Noise(2*nx, 2* ny) + 0.25 * Noise(4*nx,4*ny),4);
+                        values[y][x] = Math.Pow(Noise(nx, ny) + 0.5 * Noise(2*nx, 2* ny) + 0.25 * Noise(4*nx,4*ny),1.5);
                     }
                 }
                 return values;
