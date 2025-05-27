@@ -27,10 +27,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// Disable to test API using Postman
-app.UseHttpsRedirection();
-
 app.UseCors("AllowSpecificOrigin");
+
+// Disable to test API using Postman
+// app.UseHttpsRedirection();
 
 app.UseAuthorization();
 

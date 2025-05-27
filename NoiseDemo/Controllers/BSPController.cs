@@ -24,17 +24,9 @@ namespace NoiseDemo.Controllers
             // Create the BSP Tree
             var bspTree = new BSPTree(initialSpace, minRoomWidth, minRoomHeight);
 
-            // Collect generated rooms
-            List<Rectangle> rooms = new List<Rectangle>();
-            bspTree.CollectRooms(bspTree.GetRoot(), rooms);
-
-
-            // Log rooms for testing
-            Console.WriteLine($"Generated {rooms.Count} rooms.");
-            foreach (var room in rooms)
-            {
-                Console.WriteLine($"Room: X = {room.X}, Y = {room.Y}, Width = {room.Width}, Height = {room.Height}");
-            }
+            // Collect all rooms with doors into a list that can then be converted to JSON
+            List<BSPTree.RoomWithDoors> rooms = new List<BSPTree.RoomWithDoors>();
+            bspTree.CollectRoomsWithDoors(bspTree.GetRoot(), rooms);
 
             // Return the List of rooms as JSON
             return Ok(rooms);

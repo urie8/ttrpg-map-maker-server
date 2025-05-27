@@ -1,4 +1,6 @@
-﻿public class BSPTree
+﻿using System.Drawing;
+
+public class BSPTree
 {
     // First we create the root of the BSPTree.
     // This is the starting point of the algorithm which then splits and branches out
@@ -17,211 +19,214 @@
         return aspectRatio >= 0.2 && aspectRatio <= 3.0;
     }
 
-
-
-    // This is the main part of the BSP algorithm
-    // BuildTree gets called recursively until null is returned ending the recursion loop for that branch of the tree.
     private BSPTreeNode BuildTree(Rectangle space, float minRoomWidth, float minRoomHeight, int splitCount = 0)
     {
-        // This makes sure the rooms aren't split into too small chunks.
-        // If they are too small to split it returns as a leaf.
+        // Round the room's X, Y, Width, and Height to the nearest multiple of 64
+        space.X = RoundToNearest64(space.X);
+        space.Y = RoundToNearest64(space.Y);
+        space.Width = RoundToNearest64(space.Width);
+        space.Height = RoundToNearest64(space.Height);
+
+        // Create the node for the current room
+        BSPTreeNode node = new BSPTreeNode(space);
+
+        // Initialize the room with floor tiles
+        FillRoomWithFloors(node);
+
         if (!space.IsLargeEnough(minRoomWidth, minRoomHeight))
         {
-            return new BSPTreeNode(space); // If room is too small, it's a leaf node
+            return node; // Room is too small, just return the current node
         }
 
-        // Force splits for the first two levels (splitCount <= 1)
+        bool shouldSplit = ShouldSplitRoom(splitCount, space);
+        if (shouldSplit)
+        {
+            // Split the room
+            SplitRoom(node, space, minRoomWidth, minRoomHeight, splitCount);
+        }
+
+        // Add doors
+        AddDoorsToRoom(node);
+
+        return node;
+    }
+
+    private bool ShouldSplitRoom(int splitCount, Rectangle space)
+    {
         bool shouldSplit;
 
+        // Force splits for the first two levels (splitCount <= 1)
         if (splitCount < 2)
         {
             shouldSplit = true; // Ensure the first two splits always happen
         }
         else
         {
-            // For subsequent splits, calculate dynamic split chance
+            // For subsequent splits, calculate dynamic split chance based on room size and split count
             double splitChance = CalculateSplitChance(space, splitCount);
-            shouldSplit = rnd.NextDouble() < splitChance; // Split based on calculated chance
 
-            // Log the decision of whether to split the room or not
-            Console.WriteLine($"Room size: {space.Width}x{space.Height}, Split chance: {splitChance * 100}%, Random decision: {(shouldSplit ? "Split" : "Skip")}");
+            // Decide whether to split or not based on the calculated chance and aspect ratio
+            shouldSplit = rnd.NextDouble() < splitChance && IsAspectRatioValid(space);
 
-
+            // Optional: Log the decision for debugging purposes
+            Console.WriteLine($"Room size: {space.Width}x{space.Height}, Split chance: {splitChance * 100}%, Aspect ratio valid: {IsAspectRatioValid(space)}, Random decision: {(shouldSplit ? "Split" : "Skip")}");
         }
 
-
-        if (shouldSplit)
-        {
-            // Randomize a number between 0 & 1
-            // If the number is 0 the boolean is set to true
-            bool splitHorizontally = rnd.Next(2) == 0;
-            float splitLine;
-
-            if (splitHorizontally)
-            {
-                // For horizontal splits, ensure the split line is a multiple of minRoomHeight.
-                // Generate a random line between minRoomHeight and (Height - minRoomHeight)
-                int start = (int)(space.Y + minRoomHeight);
-                int end = (int)(space.Y + space.Height - minRoomHeight);
-
-                // Make sure that there is enough space to split the room
-                if (end > start)
-                {
-                    // Find the nearest multiple of minRoomHeight within the range
-                    int range = (end - start) / (int)minRoomHeight;
-                    splitLine = rnd.Next(range) * (int)minRoomHeight + start;
-
-                    Console.WriteLine($"splitLine horizontal: {splitLine}");
-                }
-                else
-                {
-                    // If the room is too small to split, skip this split
-                    Console.WriteLine("Room is too small for a horizontal split, skipping...");
-                    return new BSPTreeNode(space); // Return as leaf node
-                }
-            }
-            else
-            {
-                // For vertical splits, ensure the split line is a multiple of minRoomWidth.
-                // Generate a random line between minRoomWidth and (Width - minRoomWidth)
-                int start = (int)(space.X + minRoomWidth);
-                int end = (int)(space.X + space.Width - minRoomWidth);
-
-                // Make sure that there is enough space to split the room
-                if (end > start)
-                {
-                    // Find the nearest multiple of minRoomWidth within the range
-                    int range = (end - start) / (int)minRoomWidth;
-                    splitLine = rnd.Next(range) * (int)minRoomWidth + start;
-
-                    Console.WriteLine($"splitLine vertical: {splitLine}");
-                }
-                else
-                {
-                    // If the room is too small to split, skip this split
-                    Console.WriteLine("Room is too small for a vertical split, skipping...");
-                    return new BSPTreeNode(space); // Return as leaf node
-                }
-            }
-
-
-
-
-            // Create a Left and Right room following the split
-            Rectangle leftRoom, rightRoom;
-
-            // Set the Left and Right rooms variables according to where they are split from
-            if (splitHorizontally)
-            {
-                leftRoom = new Rectangle(space.X, space.Y, space.Width, splitLine - space.Y);
-                rightRoom = new Rectangle(space.X, splitLine, space.Width, space.Y + space.Height - splitLine);
-            }
-            else
-            {
-                leftRoom = new Rectangle(space.X, space.Y, splitLine - space.X, space.Height);
-                rightRoom = new Rectangle(splitLine, space.Y, space.X + space.Width - splitLine, space.Height);
-            }
-
-
-            // Check if both rooms have a valid aspect ratio
-            if (!IsAspectRatioValid(leftRoom) || !IsAspectRatioValid(rightRoom))
-            {
-                Console.WriteLine("rooms skipped due to invalid aspect ratio: leftRoom: " + leftRoom + ", rightRoom: " + rightRoom);
-                return new BSPTreeNode(space); // Skip this split if aspect ratio is invalid
-            }
-
-
-            // Ensure both rooms are large enough before creating subtrees
-            if (leftRoom.IsLargeEnough(minRoomWidth, minRoomHeight) && rightRoom.IsLargeEnough(minRoomWidth, minRoomHeight))
-            {
-                // Create a new node and recursively build sub-trees
-                BSPTreeNode node = new BSPTreeNode(space);
-
-                // Create new rectangles with root set to false
-                node.Left = BuildTree(leftRoom, minRoomWidth, minRoomHeight, splitCount + 1);
-                node.Right = BuildTree(rightRoom, minRoomWidth, minRoomHeight, splitCount + 1);
-
-                return node;
-            }
-        }
-
-        if (splitCount > 2) // Only allow merging after 2 splits
-        {
-            MergeSmallRooms(root, minRoomWidth, minRoomHeight);
-        }
-
-        // If the rooms are not large enough, return null
-        return new BSPTreeNode(space); // Return the current room as a leaf node
+        return shouldSplit;
     }
 
-    // Method to merge adjacent rooms if they're small enough and after a certain number of splits
-    private void MergeSmallRooms(BSPTreeNode node, float minRoomWidth, float minRoomHeight)
+    private void FillRoomWithFloors(BSPTreeNode node)
     {
-        if (node == null) return;
+        for (int x = 0; x < node.Tiles.GetLength(0); x++)
+        {
+            for (int y = 0; y < node.Tiles.GetLength(1); y++)
+            {
+                node.Tiles[x, y] = TileType.Floor; // Set all tiles to floor initially
+            }
+        }
+    }
 
-        // If the node has child rooms, attempt merging them
+    private void SplitRoom(BSPTreeNode node, Rectangle space, float minRoomWidth, float minRoomHeight, int splitCount)
+    {
+        // Randomize a split direction
+        bool splitHorizontally = rnd.Next(2) == 0;
+        int splitLine = 0;
+
+        if (splitHorizontally)
+        {
+            // Ensure the space is large enough to split horizontally
+            if (space.Height < minRoomHeight * 2)
+                return; // Not enough space to split
+
+            splitLine = rnd.Next(
+                (int)(space.Y + minRoomHeight),
+                (int)(space.Y + space.Height - minRoomHeight)
+            );
+
+            // Define the top and bottom rooms with updated positions
+            Rectangle topRoom = new Rectangle(space.X, space.Y, space.Width, splitLine - space.Y);
+            Rectangle bottomRoom = new Rectangle(space.X, splitLine, space.Width, space.Bottom - splitLine);
+
+            // Mark the wall between the top and bottom rooms
+            MarkWallsBetweenRooms(node, topRoom, bottomRoom);
+
+            // Create the left and right child nodes and assign the updated coordinates (relative to parent)
+            node.Left = BuildTree(topRoom, minRoomWidth, minRoomHeight, splitCount + 1);
+            node.Right = BuildTree(bottomRoom, minRoomWidth, minRoomHeight, splitCount + 1);
+        }
+        else
+        {
+            // Ensure the space is large enough to split vertically
+            if (space.Width < minRoomWidth * 2)
+                return; // Not enough space to split
+
+            splitLine = rnd.Next(
+                (int)(space.X + minRoomWidth),
+                (int)(space.X + space.Width - minRoomWidth)
+            );
+
+            // Define the left and right rooms with updated positions
+            Rectangle leftRoom = new Rectangle(space.X, space.Y, splitLine - space.X, space.Height);
+            Rectangle rightRoom = new Rectangle(splitLine, space.Y, space.Right - splitLine, space.Height);
+
+            // Mark the wall between the left and right rooms
+            MarkWallsBetweenRooms(node, leftRoom, rightRoom);
+
+            // Create the left and right child nodes and assign the updated coordinates (relative to parent)
+            node.Left = BuildTree(leftRoom, minRoomWidth, minRoomHeight, splitCount + 1);
+            node.Right = BuildTree(rightRoom, minRoomWidth, minRoomHeight, splitCount + 1);
+        }
+    }
+
+
+
+
+
+    private void MarkWallsBetweenRooms(BSPTreeNode node, Rectangle leftRoom, Rectangle rightRoom)
+    {
+        if (rightRoom.X == leftRoom.X) // Horizontal split
+        {
+            for (int x = (int)leftRoom.X; x < leftRoom.X + leftRoom.Width; x++)
+            {
+                int wallY = (int)(rightRoom.Y - 1); // Wall between the left and right rooms
+
+                // Calculate indices
+                int tileX = (int)Math.Floor((x - node.Room.X) / 64.0);
+                int tileY = (int)Math.Floor((wallY - node.Room.Y) / 64.0);
+
+                // Check bounds before accessing the array
+                if (tileX >= 0 && tileX < node.Tiles.GetLength(0) && tileY >= 0 && tileY < node.Tiles.GetLength(1))
+                {
+                    node.Tiles[tileX, tileY] = TileType.Wall;
+                }
+                else
+                {
+                    // Log out of bounds error if necessary for debugging
+                    Console.WriteLine($"Out of bounds at x: {tileX}, y: {tileY}");
+                }
+            }
+        }
+        else // Vertical split
+        {
+            for (int y = (int)leftRoom.Y; y < leftRoom.Y + leftRoom.Height; y++)
+            {
+                int wallX = (int)(rightRoom.X - 1); // Wall between the left and right rooms
+
+                // Calculate indices
+                int tileX = (int)Math.Floor((wallX - node.Room.X) / 64);
+                int tileY = (int)Math.Floor((y - node.Room.Y) / 64);
+
+                // Check bounds before accessing the array
+                if (tileX >= 0 && tileX < node.Tiles.GetLength(0) && tileY >= 0 && tileY < node.Tiles.GetLength(1))
+                {
+                    node.Tiles[tileX, tileY] = TileType.Wall;
+                }
+                else
+                {
+                    // Log out of bounds error if necessary for debugging
+                    Console.WriteLine($"Out of bounds at x: {tileX}, y: {tileY}");
+                }
+            }
+        }
+    }
+
+
+    private void AddDoorsToRoom(BSPTreeNode node)
+    {
         if (node.Left != null && node.Right != null)
         {
-            // Check if both rooms are small enough to merge
-            if (node.Left.Room.Width < minRoomWidth && node.Left.Room.Height < minRoomHeight &&
-                node.Right.Room.Width < minRoomWidth && node.Right.Room.Height < minRoomHeight)
-            {
-                // Check for adjacency (rooms must be adjacent either horizontally or vertically)
-                if (AreRoomsAdjacent(node.Left.Room, node.Right.Room))
-                {
-                    // Use random chance to decide if we merge them
-                    if (rnd.NextDouble() < 0.5f) // Change varible as needed!
-                    {
-                        // Merge the rooms by creating a larger room that encompasses both
-                        Rectangle mergedRoom = MergeRooms(node.Left.Room, node.Right.Room);
+            // Place a door between left and right room
+            Point door = GetDoorLocation(node.Left.Room, node.Right.Room, true); // Assuming horizontal split
+            node.Doors.Add(door);
+        }
+    }
 
-                        // Replace the left and right rooms with the merged room
-                        node.Room = mergedRoom;
-                        node.Left = null;
-                        node.Right = null;
+    private Point GetDoorLocation(Rectangle left, Rectangle right, bool splitHorizontally)
+    {
+        int minX = (int)Math.Min(left.Left, right.Left);
+        int maxX = (int)Math.Max(left.Right, right.Right);
 
-                        Console.WriteLine($"Merged rooms: {node.Left.Room} and {node.Right.Room} into {mergedRoom}");
-                    }
-                    else
-                    {
-                        Console.WriteLine("Merge attempt failed due to random chance.");
-                    }
-                }
-            }
+        int minY = (int)Math.Min(left.Top, right.Top);
+        int maxY = (int)Math.Max(left.Bottom, right.Bottom);
+
+        // Check if min values are less than max values to avoid ArgumentOutOfRangeException
+        if (minX >= maxX || minY >= maxY)
+        {
+            // Handle case where room size is invalid or too small
+            throw new InvalidOperationException("Room size is too small to place a door.");
         }
 
-        // Recursively call MergeSmallRooms on child nodes
-        MergeSmallRooms(node.Left, minRoomWidth, minRoomHeight);
-        MergeSmallRooms(node.Right, minRoomWidth, minRoomHeight);
+        // Generate a random door location
+        Random random = new Random();
+        int doorX = random.Next((int)minX, (int)maxX);
+        int doorY = random.Next((int)minY, (int)maxY);
+
+        // Round doorX and doorY to the nearest multiple of 64 (or the tile size)
+        doorX = (doorX / 64) * 64; // Round to nearest multiple of 64
+        doorY = (doorY / 64) * 64; // Round to nearest multiple of 64
+
+        return new Point(doorX, doorY);
     }
-
-    // Check if two rooms are adjacent either horizontally or vertically
-    private bool AreRoomsAdjacent(Rectangle room1, Rectangle room2)
-    {
-        // Check horizontal adjacency
-        bool horizontalAdjacent = (room1.Y == room2.Y && room1.Height == room2.Height &&
-                                   (room1.X + room1.Width == room2.X || room2.X + room2.Width == room1.X));
-
-        // Check vertical adjacency
-        bool verticalAdjacent = (room1.X == room2.X && room1.Width == room2.Width &&
-                                 (room1.Y + room1.Height == room2.Y || room2.Y + room2.Height == room1.Y));
-
-        return horizontalAdjacent || verticalAdjacent;
-    }
-
-    // Merge two adjacent rooms into one larger room
-    private Rectangle MergeRooms(Rectangle room1, Rectangle room2)
-    {
-        // Merge rooms by taking the outer bounds of the two rooms
-        int x = (int)Math.Min(room1.X, room2.X);
-        int y = (int)Math.Min(room1.Y, room2.Y);
-        int width = (int)(Math.Max(room1.X + room1.Width, room2.X + room2.Width) - x);
-        int height = (int)(Math.Max(room1.Y + room1.Height, room2.Y + room2.Height) - y);
-
-        return new Rectangle(x, y, width, height);
-    }
-
-    // Other methods (like CollectRooms, CalculateSplitChance, etc.) remain the same...
 
 
     // Method to calculate dynamic split chance based on room size and the number of splits
@@ -269,24 +274,50 @@
         return finalSplitChance;
     }
 
+    // Helper method to round a number to the nearest multiple of 64
+    private float RoundToNearest64(float value)
+    {
+        return (float)(Math.Round(value / 64.0) * 64);
+    }
 
 
+    public TileType[,] GetRoomLayout(BSPTreeNode node)
+    {
+        return node.Tiles;
+    }
 
-    // CHATGPT STUFF
-    // Collect rooms from the BSP tree using pre-order traversal
-    public void CollectRooms(BSPTreeNode node, List<Rectangle> rooms)
+    public enum TileType
+    {
+        Empty,
+        Floor,
+        Wall,
+        Door
+    }
+
+    public void CollectRoomsWithDoors(BSPTreeNode node, List<RoomWithDoors> rooms)
     {
         if (node == null) return;
 
-        // Add the current room to the list
-        rooms.Add(node.Room);
+        // Collect this room's information and doors
+        RoomWithDoors roomWithDoors = new RoomWithDoors
+        {
+            Room = node.Room,
+            Doors = node.Doors
+        };
 
-        // Recurse into left and right subtrees
-        CollectRooms(node.Left, rooms);
-        CollectRooms(node.Right, rooms);
+        rooms.Add(roomWithDoors);
+
+        // Recursively collect rooms for left and right subtrees
+        CollectRoomsWithDoors(node.Left, rooms);
+        CollectRoomsWithDoors(node.Right, rooms);
     }
 
-    // Getter for the root of the tree
+    public class RoomWithDoors
+    {
+        public Rectangle Room { get; set; }
+        public List<Point> Doors { get; set; } = new();
+    }
+
     public BSPTreeNode GetRoot()
     {
         return root;
